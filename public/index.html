@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Camera Streaming</title>
+    <style>
+        video {
+            width: 680px;
+            height: 514px;
+            margin: 5px;
+            border: 1px solid #000;
+        }
+
+        button {
+            margin: 3px;
+            padding: 5px 10px;
+        }
+
+        #recordProgress {
+            margin-left: 10px;
+            font-weight: bold;
+        }
+
+        #recordProgress2 {
+            margin-left: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Camera Streaming</h2>
+
+    <!-- Mobile controls -->
+    <div id="mobileControls">
+        <button id="startBtn" style="display:none;">Start Stream</button>
+        <button id="rotateBtn" style="display:none;">Rotate Camera</button>
+        <button id="zoomInBtn" style="display:none;">Zoom In</button>
+        <button id="zoomOutBtn" style="display:none;">Zoom Out</button>
+        <button id="torchBtn" style="display:none;">Toggle Torch</button>
+        <button id="localRecordBtn" style="display:none;">Record Locally</button>
+
+    </div>
+
+    <!-- Laptop controls -->
+    <div id="laptopControls">
+        
+        <button id="rotateLaptopBtn">Rotate Camera</button>
+        <button id="zoomInLaptop">Zoom In</button>
+        <button id="zoomOutLaptop">Zoom Out</button>
+        <button id="torchLaptop">Toggle Torch</button>
+        <button id="recordBtn">Start Recording</button>
+        <span id="recordProgress"></span>
+        <button id="localRecordLaptopBtn">Record Locally (4K)</button>
+        <span id="recordProgress2"></span>
+
+    </div>
+
+    <!-- Video Elements -->
+    <div>
+        <video id="localVideo" autoplay playsinline muted></video>
+        <video id="remoteVideo" autoplay playsinline controls></video>
+    </div>
+
+    <!-- Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- App JS -->
+    <script>
+        const socket = io();
+        let pc = new RTCPeerConnection();
+        const localVideo = document.getElementById("localVideo");
+        const remoteVideo = document.getElementById("remoteVideo");
+
+        // Mobile buttons
+        const startBtn = document.getElementById("startBtn");
+        const rotateBtn = document.getElementById("rotateBtn");
+        const zoomInBtn = document.getElementById("zoomInBtn");
+        const zoomOutBtn = document.getElementById("zoomOutBtn");
+        const torchBtn = document.getElementById("torchBtn");
+
+        // Laptop buttons
+        const rotateLaptopBtn = document.getElementById("rotateLaptopBtn");
+        const zoomInLaptopBtn = document.getElementById("zoomInLaptop");
+        const zoomOutLaptopBtn = document.getElementById("zoomOutLaptop");
+        const torchLaptopBtn = document.getElementById("torchLaptop");
+        const recordBtn = document.getElementById("recordBtn");
+        const localRecordLaptopBtn = document.getElementById("localRecordLaptopBtn");
+        const recordProgress = document.getElementById("recordProgress");
+        const recordProgress2 = document.getElementById("recordProgress2");
+
+        // Laptop controls div
+        const laptopControls = document.getElementById("laptopControls");
+
+        let currentStream;
+        let currentVideoTrack;
+        let sender;
+        let usingFrontCamera = true;
+        let currentZoom = 1;
+        let mediaRecorder;
+        let recordedChunks = [];
+        let isRecording = false;
+        let recordingStartTime;
+        let recordingStartTime2;
+
+        let timerInterval;
+        let timerInterval2;
+
+
+        // Show remote stream
+        pc.ontrack = (event) => {
+            remoteVideo.srcObject = event.streams[0];
+        };
+
+        // Send ICE candidates
+        pc.onicecandidate = (event) => {
+            if (event.candidate) socket.emit("candidate", event.candidate);
+        };
+
+        // Start or switch stream
+        async function startStream() {
+            if (currentStream) currentStream.getTracks().forEach(t => t.stop());
+
+            const constraints = {
+                video: {
+                    facingMode: usingFrontCamera ? "user" : "environment",
+                    width: { ideal: 1280 },  // Stream at ~720p
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 30 }
+                },
+                audio: false
+            };
+
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            localVideo.srcObject = currentStream;
+            currentVideoTrack = currentStream.getVideoTracks()[0];
+
+            if (!sender) {
+                sender = pc.addTrack(currentVideoTrack, currentStream);
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                socket.emit("offer", offer);
+            } else {
+                await sender.replaceTrack(currentVideoTrack);
+            }
+        }
+
+
+        // Zoom
+        async function applyZoom(level) {
+            if (!currentVideoTrack) return;
+            const caps = currentVideoTrack.getCapabilities();
+            if (caps.zoom) {
+                currentZoom = Math.min(caps.zoom.max, Math.max(caps.zoom.min, level));
+                await currentVideoTrack.applyConstraints({ advanced: [{ zoom: currentZoom }] });
+            }
+        }
+
+        // Torch
+        async function toggleTorch() {
+            if (!currentVideoTrack) return;
+            const caps = currentVideoTrack.getCapabilities();
+            if (caps.torch) {
+                let torchOn = !(torchBtn.dataset.torchOn === "true");
+                await currentVideoTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
+                torchBtn.dataset.torchOn = torchOn;
+            }
+        }
+
+        // Format time as MM:SS
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Update recording progress
+        function updateRecordingProgress() {
+            const elapsedSeconds = (Date.now() - recordingStartTime) / 1000;
+            recordProgress.textContent = `Recording: ${formatTime(elapsedSeconds)}`;
+
+
+        }
+        function updateRecordingProgress2() {
+            const elapsedSeconds = (Date.now() - recordingStartTime2) / 1000;
+            recordProgress2.textContent = `Recording: ${formatTime(elapsedSeconds)}`;
+
+        }
+
+        // Recording functionality
+        function startRecording() {
+            if (!remoteVideo.srcObject) {
+                alert("No video stream available to record.");
+                return;
+            }
+            recordedChunks = [];
+            mediaRecorder = new MediaRecorder(remoteVideo.srcObject, { mimeType: 'video/webm' });
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) recordedChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `recording-${new Date().toISOString()}.webm`;
+                document.body.appendChild(a);
+                a.click();
+                URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+            recordBtn.textContent = 'Stop Recording';
+            recordingStartTime = Date.now();
+            recordProgress.textContent = 'Recording: 00:00';
+            timerInterval = setInterval(updateRecordingProgress, 1000);
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                recordBtn.textContent = 'Start Recording';
+                clearInterval(timerInterval);
+                recordProgress.textContent = '';
+            }
+        }
+
+        
+
+        // Detect mobile
+        const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
+
+        if (isMobile) {
+            // Show mobile buttons
+            startBtn.style.display = "block";
+            rotateBtn.style.display = "block";
+            zoomInBtn.style.display = "block";
+            zoomOutBtn.style.display = "block";
+            torchBtn.style.display = "block";
+            // Hide laptop controls and remote video
+            remoteVideo.style.display = "none";
+            laptopControls.style.display = "none";
+
+            startBtn.onclick = () => startStream();
+            rotateBtn.onclick = () => { usingFrontCamera = !usingFrontCamera; startStream(); };
+            zoomInBtn.onclick = () => applyZoom(currentZoom + 1);
+            zoomOutBtn.onclick = () => applyZoom(currentZoom - 1);
+            torchBtn.onclick = () => toggleTorch();
+
+            
+            const localRecordBtn = document.getElementById("localRecordBtn");
+            localRecordBtn.style.display = "block";
+
+            localRecordBtn.onclick = () => {
+                if (isLocRecording) {
+                    stopLocalRecording();
+                    localRecordBtn.textContent = "Record Locally";
+                } else {
+                    startLocalRecording();
+                    localRecordBtn.textContent = "Stop Local Recording";
+                }
+                isLocRecording = !isLocRecording;
+            };
+
+        } else {
+            // Show laptop controls and hide local video
+            laptopControls.style.display = "block";
+            localVideo.style.display = "none";
+
+            // Laptop controls emit commands to mobile
+            rotateLaptopBtn.addEventListener("click", () => socket.emit("control", { action: "rotate" }));
+            zoomInLaptopBtn.addEventListener("click", () => socket.emit("control", { action: "zoomIn" }));
+            zoomOutLaptopBtn.addEventListener("click", () => socket.emit("control", { action: "zoomOut" }));
+            torchLaptopBtn.addEventListener("click", () => socket.emit("control", { action: "torch" }));
+            recordBtn.addEventListener("click", () => {
+                if (isRecording) stopRecording();
+                else startRecording();
+            });
+
+            socket.on("offer", async (offer) => {
+                await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                socket.emit("answer", answer);
+            });
+        }
+
+        // Mobile listens for laptop commands
+        socket.on("control", async (data) => {
+            if (!currentVideoTrack) return;
+            switch (data.action) {
+                case "rotate": usingFrontCamera = !usingFrontCamera; await startStream(); break;
+                case "zoomIn": await applyZoom(currentZoom + 1); break;
+                case "zoomOut": await applyZoom(currentZoom - 1); break;
+                case "torch": await toggleTorch(); break;
+                case "localRecord":
+                    if (isLocRecording) {
+                        stopLocalRecording();
+                        isLocRecording = false;
+                        localRecordBtn.textContent = "Record Locally";
+                    } else {
+                        await startLocalRecording();
+                        isLocRecording = true;
+                        localRecordBtn.textContent = "Stop Local Recording";
+                    }
+                    break;
+            }
+        });
+
+        // Handle answer & candidates
+        socket.on("answer", async (answer) => {
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        });
+        socket.on("candidate", async (candidate) => {
+            try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
+            catch (err) { console.error("ICE candidate error", err); }
+        });
+
+        // Local recording (on mobile)
+        let localRecorder;
+        let localChunks = [];
+        let isLocRecording = false;
+
+        // Start local recording in 4K
+        // Start local recording in 4K
+        // Start local recording in highest supported quality
+        // Local recording (on mobile) - uses the existing streaming stream
+
+
+        function startLocalRecording() {
+            if (!currentStream) {
+                alert("No camera stream available to record.");
+                return;
+            }
+
+            // Clone the stream for recording if possible
+            const recordStream = new MediaStream(currentStream.getTracks());
+
+            localChunks = [];
+
+            // Set high quality options
+            let options = { mimeType: "video/webm;codecs=vp9", videoBitsPerSecond: 30_000_000 };
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = { mimeType: "video/mp4;codecs=h264", videoBitsPerSecond: 30_000_000 };
+            }
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = { mimeType: "video/webm;codecs=vp8", videoBitsPerSecond: 30_000_000 };
+            }
+
+            localRecorder = new MediaRecorder(recordStream, options);
+
+            localRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) localChunks.push(event.data);
+            };
+
+            localRecorder.onstop = () => {
+                const blob = new Blob(localChunks, { type: options.mimeType.split(";")[0] });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `local-recording-${new Date().toISOString()}.${options.mimeType.includes("mp4") ? "mp4" : "webm"}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                console.log("Local recording saved");
+            };
+
+            localRecorder.start();
+            console.log("Local recording started with:", options);
+
+
+
+        }
+
+        function stopLocalRecording() {
+            if (localRecorder && localRecorder.state !== "inactive") {
+                localRecorder.stop();
+                console.log("Local recording stopped");
+
+            }
+        }
+
+        var localcount = 0; localRecordLaptopBtn.addEventListener("click", () => {
+            if (localcount == 0) {
+                localRecordLaptopBtn.textContent = "Stop Local Recording";
+                localcount = 1
+                recordingStartTime2 = Date.now();
+                recordProgress2.textContent = 'Recording: 00:00';
+                timerInterval2 = setInterval(updateRecordingProgress2, 1000);
+            }
+            else {
+                localRecordLaptopBtn.textContent = "Record Locally (4K)";
+                clearInterval(timerInterval2)
+                recordProgress2.textContent = ''
+
+                localcount = 0
+            }
+            socket.emit("control", { action: "localRecord" });
+        });
+
+
+    </script>
+</body>
+
+</html>
