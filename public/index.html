@@ -38,13 +38,13 @@
         <button id="zoomInBtn" style="display:none;">Zoom In</button>
         <button id="zoomOutBtn" style="display:none;">Zoom Out</button>
         <button id="torchBtn" style="display:none;">Toggle Torch</button>
-        <button id="localRecordBtn" style="display:none;">Record Locally</button>
+        <button id="localRecordBtn" style="display:none;" disabled>Record Locally</button>
 
     </div>
 
     <!-- Laptop controls -->
     <div id="laptopControls">
-        
+
         <button id="rotateLaptopBtn">Rotate Camera</button>
         <button id="zoomInLaptop">Zoom In</button>
         <button id="zoomOutLaptop">Zoom Out</button>
@@ -105,11 +105,23 @@
         let timerInterval;
         let timerInterval2;
 
+        let localRecorder;
+        let localChunks = [];
+        let isLocRecording = false;
+
 
         // Show remote stream
         pc.ontrack = (event) => {
             remoteVideo.srcObject = event.streams[0];
         };
+        
+        pc.onconnectionstatechange = () => {
+            console.log("Connection state:", pc.connectionState);
+            if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+                restartConnection();
+            }
+        };
+
 
         // Send ICE candidates
         pc.onicecandidate = (event) => {
@@ -230,7 +242,7 @@
             }
         }
 
-        
+
 
         // Detect mobile
         const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
@@ -252,7 +264,7 @@
             zoomOutBtn.onclick = () => applyZoom(currentZoom - 1);
             torchBtn.onclick = () => toggleTorch();
 
-            
+
             const localRecordBtn = document.getElementById("localRecordBtn");
             localRecordBtn.style.display = "block";
 
@@ -322,9 +334,7 @@
         });
 
         // Local recording (on mobile)
-        let localRecorder;
-        let localChunks = [];
-        let isLocRecording = false;
+
 
         // Start local recording in 4K
         // Start local recording in 4K
@@ -387,7 +397,17 @@
             }
         }
 
-        var localcount = 0; localRecordLaptopBtn.addEventListener("click", () => {
+        //If internet gone and restore
+        async function restartConnection() {
+            console.log("Restarting connection...");
+            const offer = await pc.createOffer({ iceRestart: true });
+            await pc.setLocalDescription(offer);
+            socket.emit("offer", offer);
+        }
+
+
+        var localcount = 0;
+        localRecordLaptopBtn.addEventListener("click", () => {
             if (localcount == 0) {
                 localRecordLaptopBtn.textContent = "Stop Local Recording";
                 localcount = 1
