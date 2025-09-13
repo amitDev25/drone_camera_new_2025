@@ -4,14 +4,23 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "concurrently \"npm run dev:css\" \"npm run dev:server\"",
+    "dev:css": "tailwindcss -i ./public/global.css -o ./public/output.css --watch",
+    "dev:server": "nodemon server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@tailwindcss/cli": "^4.1.13",
     "express": "^5.1.0",
     "socket": "^1.1.9",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "tailwindcss": "^4.1.13",
+    "tw-animate-css": "^1.3.8"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

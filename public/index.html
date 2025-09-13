@@ -1,74 +1,333 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-    <title>Camera Streaming</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Streaming</title>
+    <link rel="stylesheet" href="./output.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&family=Open+Sans:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        video {
-            width: 680px;
-            height: 514px;
-            margin: 5px;
-            border: 1px solid #000;
+        :root {
+            --background: #ffffff;
+            --foreground: #374151;
+            --card: #f0fdf4;
+            --card-foreground: #374151;
+            --primary: #15803d;
+            --primary-foreground: #ffffff;
+            --secondary: #84cc16;
+            --secondary-foreground: #374151;
+            --accent: #84cc16;
+            --accent-foreground: #ffffff;
+            --destructive: #be123c;
+            --destructive-foreground: #ffffff;
+            --border: #e5e7eb;
+            --radius: 0.5rem;
         }
 
-        button {
-            margin: 3px;
-            padding: 5px 10px;
+       :root.dark {
+            --background: #0f172a;
+            --foreground: #f1f5f9;
+            --card: #1e293b;
+            --card-foreground: #f1f5f9;
+            --primary: #22c55e;
+            --primary-foreground: #0f172a;
+            --secondary: #84cc16;
+            --secondary-foreground: #0f172a;
+            --accent: #84cc16;
+            --accent-foreground: #0f172a;
+            --destructive: #ef4444;
+            --destructive-foreground: #f1f5f9;
+            --border: #334155;
         }
 
-        #recordProgress {
-            margin-left: 10px;
-            font-weight: bold;
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background: var(--background);
+            color: var(--foreground);
         }
 
-        #recordProgress2 {
-            margin-left: 10px;
-            font-weight: bold;
+        .heading-font {
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        .video-container {
+            background: linear-gradient(135deg, rgba(21, 128, 61, 0.05) 0%, rgba(132, 204, 22, 0.05) 100%);
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .control-button {
+            background: var(--primary);
+            color: var(--primary-foreground);
+            border: none;
+            border-radius: var(--radius);
+            padding: 12px 20px;
+            font-weight: 600;
+            font-family: 'Montserrat', sans-serif;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(21, 128, 61, 0.3);
+        }
+
+        .control-button:hover {
+            background: #166534;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(21, 128, 61, 0.4);
+        }
+
+        .secondary-button {
+            background: var(--secondary);
+            color: var(--secondary-foreground);
+            border: none;
+            border-radius: var(--radius);
+            padding: 10px 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(132, 204, 22, 0.3);
+        }
+
+        .secondary-button:hover {
+            background: #65a30d;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(132, 204, 22, 0.4);
+        }
+
+        .destructive-button {
+            background: var(--destructive);
+            color: var(--destructive-foreground);
+            border: none;
+            border-radius: var(--radius);
+            padding: 10px 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .destructive-button:hover {
+            background: #9f1239;
+            transform: translateY(-1px);
+        }
+
+        .control-panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .video-element {
+            border-radius: var(--radius);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .video-element:hover {
+            transform: scale(1.02);
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: var(--accent);
+            color: var(--accent-foreground);
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .recording-pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        button:disabled {
+            background: #115c03 !important;
+            /* Gray background */
+            color: #b4b4b4 !important;
+            /* Muted text */
+            cursor: not-allowed;
+            box-shadow: none !important;
+            transform: none !important;
+            opacity: 0.7;
+        }
+
+        @media (max-width: 768px) {
+            .video-element {
+                width: 100% !important;
+                height: auto !important;
+            }
         }
     </style>
 </head>
 
-<body>
-    <h2>Camera Streaming</h2>
+<body class="min-h-screen">
+    <!-- Header -->
+     
+    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-3">
+                    <div
+                        class="w-10 h-10 bg-gradient-to-br from-green-600 to-lime-500 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-video text-white text-lg"></i>
+                    </div>
+                    <h1 class="heading-font text-2xl font-black text-gray-900">Drone Streaming</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="themeToggle" class="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                        <i class="fas fa-moon text-gray-600"></i>
+                    </button>
+                    
+                </div>
+            </div>
+        </div>
+    </header>
 
-    <!-- Mobile controls -->
-    <div id="mobileControls">
-        <button id="startBtn" style="display:none;">Start Stream</button>
-        <button id="rotateBtn" style="display:none;">Rotate Camera</button>
-        <button id="zoomInBtn" style="display:none;">Zoom In</button>
-        <button id="zoomOutBtn" style="display:none;">Zoom Out</button>
-        <button id="torchBtn" style="display:none;">Toggle Torch</button>
-        <button id="localRecordBtn" style="display:none;">Record Locally</button>
+    <main class="flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 py-8">
 
-    </div>
+        <!-- Video Section -->
+        <div class="flex flex-col items-center w-full max-w-4xl mb-8">
+            <div id="mobileVideoDiv" class="video-container p-4 w-full">
+                <div class="mb-3 flex items-center justify-between">
+                    <h3 class="heading-font text-lg font-bold">Local Camera</h3>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-2 h-2 bg-green-400 rounded-full"></div>
+                    </div>
+                </div>
+                <video id="localVideo" autoplay playsinline muted
+                    class="video-element w-full h-64 sm:h-80 lg:h-96 object-cover bg-gray-900 rounded-lg shadow">
+                </video>
+            </div>
 
-    <!-- Laptop controls -->
-    <div id="laptopControls">
+            <div id="laptopVideoDiv" class="video-container p-4 w-2xl h-10/12 mt-6">
+                <div class="mb-3 flex items-center justify-between">
+                    <h3 class="heading-font text-lg font-bold ">Remote Stream</h3>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-2 h-2 bg-blue-400 rounded-full"></div>
+                    </div>
+                </div>
+                <video id="remoteVideo" autoplay playsinline controls
+                    class="video-element w-full h-64 sm:h-80 lg:h-96 bg-gray-900 rounded-lg shadow">
+                </video>
+            </div>
+        </div>
 
-        <button id="rotateLaptopBtn">Rotate Camera</button>
-        <button id="zoomInLaptop">Zoom In</button>
-        <button id="zoomOutLaptop">Zoom Out</button>
-        <button id="torchLaptop">Toggle Torch</button>
-        <button id="recordBtn">Start Recording</button>
-        <span id="recordProgress"></span>
-        <button id="localRecordLaptopBtn">Record Locally (4K)</button>
-        <span id="recordProgress2"></span>
-        <button id="disableBtn">Disable Mobile Buttons</button>
+        <!-- Control Panels -->
+        <div class="flex flex-col items-center w-full max-w-4xl space-y-6">
+            <!-- Mobile Controls -->
+            <div id="mobileControls" class="control-panel w-full p-4 rounded-lg shadow bg-white">
+                <h3 class="heading-font text-xl font-bold mb-6 flex items-center">
+                    <i class="fas fa-mobile-alt mr-3 text-green-600"></i>
+                    Mobile Controls
+                </h3>
+                <div class="flex flex-wrap gap-3">
+                    <button id="startBtn" class="control-button hidden">
+                        <i class="fas fa-play mr-2"></i>Start Stream
+                    </button>
+                    <button id="rotateBtn" class="secondary-button hidden">
+                        <i class="fas fa-sync-alt mr-2"></i>Rotate
+                    </button>
+                    <button id="zoomInBtn" class="secondary-button hidden">
+                        <i class="fas fa-search-plus mr-2"></i>Zoom In
+                    </button>
+                    <button id="zoomOutBtn" class="secondary-button hidden">
+                        <i class="fas fa-search-minus mr-2"></i>Zoom Out
+                    </button>
+                    <button id="torchBtn" class="secondary-button hidden">
+                        <i class="fa-solid fa-bolt-lightning mr-2"></i>Torch
+                    </button>
+                    <button id="localRecordBtn" class="control-button hidden">
+                        <i class="fas fa-record-vinyl mr-2"></i>Record
+                    </button>
+                </div>
+            </div>
 
+            <!-- Desktop Controls -->
+            <div id="laptopControls" class="control-panel w-2xl p-4 rounded-lg shadow bg-white">
+                <h3 class="heading-font text-xl font-bold mb-6 flex items-center">
+                    <i class="fas fa-laptop mr-3 text-green-600"></i>
+                    Desktop Controls
+                </h3>
+                <div class="flex flex-wrap gap-3">
+                    <button id="rotateLaptopBtn" class="secondary-button">
+                        <i class="fas fa-sync-alt mr-2"></i>Rotate
+                    </button>
+                    <button id="zoomInLaptop" class="secondary-button">
+                        <i class="fas fa-search-plus mr-2"></i>Zoom In
+                    </button>
+                    <button id="zoomOutLaptop" class="secondary-button">
+                        <i class="fas fa-search-minus mr-2"></i>Zoom Out
+                    </button>
+                    <button id="torchLaptop" class="secondary-button">
+                        <i class="fa-solid fa-bolt-lightning mr-2"></i>Torch
+                    </button>
+                    <button id="recordBtn" class="control-button">
+                        <i class="fas fa-record-vinyl mr-2"></i>Record
+                    </button>
+                    <button id="localRecordLaptopBtn" class="control-button">
+                        <i class="fas fa-video mr-2"></i>4K Record
+                    </button>
+                </div>
 
+                <div class="flex items-center justify-between pt-4 mt-4 border-t border-gray-200">
+                    <div class="flex items-center space-x-4">
+                        <span id="recordProgress" class="text-sm font-medium text-gray-600"></span>
+                        <span id="recordProgress2" class="text-sm font-medium text-gray-600"></span>
+                    </div>
+                    <button id="disableBtn" class="destructive-button">
+                        <i class="fas fa-ban mr-2"></i>Disable Mobile Buttons
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
 
-    </div>
-
-    <!-- Video Elements -->
-    <div>
-        <video id="localVideo" autoplay playsinline muted></video>
-        <video id="remoteVideo" autoplay playsinline controls></video>
-    </div>
 
     <!-- Socket.io -->
     <script src="/socket.io/socket.io.js"></script>
     <!-- App JS -->
     <script src="app.js"></script>
+
+    <script>
+        
+        // Theme toggle functionality
+        document.getElementById('themeToggle').addEventListener('click', function () {
+            document.documentElement.classList.toggle('dark');
+            const icon = this.querySelector('i');
+            if (document.documentElement.classList.contains('dark')) {
+                icon.className = 'fas fa-sun text-yellow-400';
+            } else {
+                icon.className = 'fas fa-moon text-gray-600';
+            }
+        });
+
+        // Recording status toggle (example)
+      
+    </script>
 </body>
 
 </html>

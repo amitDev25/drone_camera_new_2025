@@ -125,13 +125,13 @@ const socket = io();
         // Update recording progress
         function updateRecordingProgress() {
             const elapsedSeconds = (Date.now() - recordingStartTime) / 1000;
-            recordProgress.textContent = `Recording: ${formatTime(elapsedSeconds)}`;
+            recordProgress.textContent = `PC Recording: ${formatTime(elapsedSeconds)}`;
 
 
         }
         function updateRecordingProgress2() {
             const elapsedSeconds = (Date.now() - recordingStartTime2) / 1000;
-            recordProgress2.textContent = `Recording: ${formatTime(elapsedSeconds)}`;
+            recordProgress2.textContent = `Mobile Recording: ${formatTime(elapsedSeconds)}`;
 
         }
 
@@ -165,7 +165,7 @@ const socket = io();
             isRecording = true;
             recordBtn.textContent = 'Stop Recording';
             recordingStartTime = Date.now();
-            recordProgress.textContent = 'Recording: 00:00';
+            recordProgress.textContent = 'PC Recording: 00:00';
             timerInterval = setInterval(updateRecordingProgress, 1000);
         }
 
@@ -209,6 +209,9 @@ const socket = io();
             // Hide laptop controls and remote video
             remoteVideo.style.display = "none";
             laptopControls.style.display = "none";
+            laptopVideoDiv.style.display = "none";
+            laptopControls.style.display = "none"
+
 
             startBtn.onclick = () => {
                 startStream();
@@ -236,6 +239,9 @@ const socket = io();
             // Show laptop controls and hide local video
             laptopControls.style.display = "block";
             localVideo.style.display = "none";
+            mobileVideoDiv.style.display = "none"            
+            mobileControls.style.display = "none"
+
 
             // Laptop controls emit commands to mobile
             rotateLaptopBtn.addEventListener("click", () => socket.emit("control", { action: "rotate" }));
@@ -381,15 +387,18 @@ const socket = io();
         localRecordLaptopBtn.addEventListener("click", () => {
             if (localcount == 0) {
                 localRecordLaptopBtn.textContent = "Stop Local Recording";
+                rotateLaptopBtn.disabled = true;
                 localcount = 1
                 recordingStartTime2 = Date.now();
-                recordProgress2.textContent = 'Recording: 00:00';
+                recordProgress2.textContent = 'Mobile Recording: 00:00';
                 timerInterval2 = setInterval(updateRecordingProgress2, 1000);
             }
             else {
                 localRecordLaptopBtn.textContent = "Record Locally (4K)";
                 clearInterval(timerInterval2)
                 recordProgress2.textContent = ''
+                rotateLaptopBtn.disabled = false;
+
 
                 localcount = 0
             }
